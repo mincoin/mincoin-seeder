@@ -24,6 +24,7 @@ public:
   int fUseTestNet;
   int fWipeBan;
   int fWipeIgnore;
+  const char *nAddress;
   const char *mbox;
   const char *ns;
   const char *host;
@@ -32,11 +33,11 @@ public:
   const char *ipv6_proxy;
   std::set<uint64_t> filter_whitelist;
 
-  CDnsSeedOpts() : nThreads(16), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
+  CDnsSeedOpts() : nThreads(16), nDnsThreads(4), nPort(53), nAddress(NULL), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
 
   void ParseCommandLine(int argc, char **argv) {
     static const char *help = "Mincoin-seeder\n"
-                              "Usage: %s -h <host> -n <ns> [-m <mbox>] [-t <threads>] [-p <port>]\n"
+                              "Usage: %s -h <host> -n <ns> [-m <mbox>] [-t <threads>] [-p <port>] [-a <address>]\n"
                               "\n"
                               "Options:\n"
                               "-h <host>       Hostname of the DNS seed\n"
@@ -45,6 +46,7 @@ public:
                               "-t <threads>    Number of crawlers to run in parallel (default 16)\n"
                               "-d <threads>    Number of DNS server threads (default 4)\n"
                               "-p <port>       UDP port to listen on (default 53)\n"
+                              "-a <address>    IP Address to bind to (default 127.0.0.1)\n"
                               "-o <ip:port>    Tor proxy IP/Port\n"
                               "-i <ip:port>    IPV4 SOCKS5 proxy IP/Port\n"
                               "-k <ip:port>    IPV6 SOCKS5 proxy IP/Port\n"
@@ -64,6 +66,7 @@ public:
         {"threads", required_argument, 0, 't'},
         {"dnsthreads", required_argument, 0, 'd'},
         {"port", required_argument, 0, 'p'},
+        {"address", required_argument, 0, 'a'},
         {"onion", required_argument, 0, 'o'},
         {"proxyipv4", required_argument, 0, 'i'},
         {"proxyipv6", required_argument, 0, 'k'},
@@ -75,7 +78,7 @@ public:
         {0, 0, 0, 0}
       };
       int option_index = 0;
-      int c = getopt_long(argc, argv, "h:n:m:t:p:d:o:i:k:w:?", long_options, &option_index);
+      int c = getopt_long(argc, argv, "h:n:m:t:p:a:d:o:i:k:w:?", long_options, &option_index);
       if (c == -1) break;
       switch (c) {
         case 'h': {
@@ -108,6 +111,11 @@ public:
         case 'p': {
           int p = strtol(optarg, NULL, 10);
           if (p > 0 && p < 65536) nPort = p;
+          break;
+        }
+
+        case 'a': {
+          nAddress = optarg;
           break;
         }
 
@@ -260,6 +268,7 @@ public:
     dns_opt.nsttl = 40000;
     dns_opt.cb = GetIPList;
     dns_opt.port = opts->nPort;
+    dns_opt.address = opts->nAddress;
     dns_opt.nRequests = 0;
     dbQueries = 0;
     perflag.clear();
@@ -491,7 +500,7 @@ int main(int argc, char **argv) {
   }
   pthread_t threadDns, threadSeed, threadDump, threadStats;
   if (fDNS) {
-    printf("Starting %i DNS threads for %s on %s (port %i)...", opts.nDnsThreads, opts.host, opts.ns, opts.nPort);
+    printf("Starting %i DNS threads for %s on %s (address %s) (port %i)...", opts.nDnsThreads, opts.host, opts.ns, opts.nAddress, opts.nPort);
     dnsThread.clear();
     for (int i=0; i<opts.nDnsThreads; i++) {
       dnsThread.push_back(new CDnsThread(&opts, i));
